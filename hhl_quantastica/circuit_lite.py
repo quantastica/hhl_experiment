@@ -10,6 +10,7 @@ import json
 import re
 import numpy as np
 from copy import deepcopy
+from collections import Counter
 
 
 gate_defs_path = os.path.join(os.path.abspath(""), "gate_defs.json")
@@ -254,7 +255,7 @@ class CircuitLite:
         return qasm_str
 
 
-    # Get rid of composite gates
+    # Remove composite gates (replace them with builtins)
     def decompose(self, inplace=False):
         circuit = CircuitLite()
 
@@ -271,7 +272,11 @@ class CircuitLite:
                     for wire_index in range(len(sub_instruction["wires"])):
                         sub_instruction["wires"][wire_index] = instruction["wires"][sub_instruction["wires"][wire_index]]
                     circuit.program.append(sub_instruction)
-        
+
+        if(inplace):
+            self.program = circuit.program
+            self.subroutines = circuit.subroutines
+
         return circuit
     
 
@@ -315,7 +320,7 @@ class CircuitLite:
 
             
 #
-# Naive simulator. Suitable for up to 10 qubits. Spends memory and CPU like crazy.
+# Naive simulator. Suitable for up to 10 qubits. Spends a lot of memory and CPU.
 #
 
 class SimulatorLite:
@@ -381,8 +386,27 @@ class SimulatorLite:
                                     operator[operator_row][operator_col] = gate_element
 
         return operator
-
     
+    #
+    # Get equivalent unitary of a whole circuit
+    #
+    def circuit_operator(self, circuit, global_params={}, reverse_bits=False):
+        toaster_circuit = circuit.to_toaster(global_params)
+        program = toaster_circuit["program"]
+        num_qubits = circuit.num_qubits()
+
+        circuit_operator = None
+        for gate in program:
+            # Construct gate operator
+            matrix = gate["matrix"]
+            target_qubits = gate["wires"]
+            gate_operator = self.expand_matrix(num_qubits, matrix, target_qubits, reverse_bits)
+
+            circuit_operator = gate_operator if circuit_operator is None else np.dot(circuit_operator, gate_operator)
+
+        return circuit_operator
+
+ 
     def execute_gate(self, num_qubits, matrix, target_qubits, reverse_bits):
         operator = self.expand_matrix(num_qubits, matrix, target_qubits, reverse_bits)
         self.state = np.dot(operator, self.state)
@@ -405,3 +429,31 @@ class SimulatorLite:
             
             # Apply gate
             self.execute_gate(num_qubits, matrix, target_qubits, reverse_bits)
+
+
+    # Measure all qubits (without affecting state)
+    def measure_all(self):
+        num_amplitudes = len(self.state)
+        total_qubits = int(np.log2(num_amplitudes))
+        random_weight = np.random.rand()
+        for amplitude_index in range(num_amplitudes):
+            amplitude = self.state[amplitude_index]
+            chance = np.round(np.abs(amplitude)**2, 15)
+            random_weight -= chance;
+            if(random_weight <= 0):
+                # Return binary representation of amplitude index
+                fmt = "{0:0" + str(total_qubits) + "b}"
+                return fmt.format(amplitude_index)
+
+        return ""
+
+    
+    # Probability distribution
+    def counts(self, num_shots=1024):
+        counts = Counter()
+        for shot in range(num_shots):
+            outcome = self.measure_all()
+            counts[outcome] += 1
+
+        return counts
+

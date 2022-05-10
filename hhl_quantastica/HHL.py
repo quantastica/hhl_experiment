@@ -6,7 +6,9 @@ from copy import deepcopy
 import numpy as np
 from scipy.linalg import expm
 
-
+#
+# Create QFT/IQFT subroutine
+#
 def get_qft_circuit(num_qubits, inverse=False):
     circuit = CircuitLite()
     
@@ -31,7 +33,9 @@ def get_qft_circuit(num_qubits, inverse=False):
                 
     return circuit
 
-
+#
+# Eigenvalue rotation subroutine
+#
 def get_x_1_circuit(clock_register_size):
     num_qubits = clock_register_size + 1
     
@@ -46,14 +50,18 @@ def get_x_1_circuit(clock_register_size):
         circuit.add("cry", [clock_register_size - q - 1, num_qubits - 1], angle)
         
     return circuit
-    
-
+ 
+#
+# Make controlled unitary
+#
 def get_controlled_u(U):
     Z = np.zeros((len(U), len(U)), dtype=complex)
     eye = np.eye(len(U))
     return np.block([[eye, Z], [Z, U]])
     
-
+#
+# Make HHL circuit for linear system given as square matrix A and vector b
+#
 def get_hhl_circuit(A, b, verbose=False):
     vector_register_size = int(np.log2(len(b)))
     clock_register_size = 3 # !!!
@@ -130,7 +138,7 @@ def get_hhl_circuit(A, b, verbose=False):
     circuit.add("iqft_dg", target_wires)
 
     # Time evolution dagger - inverse time evoulution steps
-    # This can be done by simple inverting time evolution steps, but CircuitLite doesn't have invert method,
+    # This can be done by simple inverting time evolution steps, but CircuitLite doesn't have invert() method [TODO],
     # So we start over - construct inverse matrices and decompose
     control_wire = clock_register_size - 1
     for t in range(1, clock_register_size + 1):
@@ -166,7 +174,13 @@ def get_hhl_circuit(A, b, verbose=False):
 
     return circuit
         
-
+#
+# Function takes linear system problem, constructs HHL circuit, executes it and
+# extracts solution from statevector.
+#
+# For running on real QPU, we will need to perform tomography (otherwise it is
+# impossible to read negative output values)
+#
 def linalg_qsolve(A, b, verbose=False, print_qasm=False):
 
     # Get classical solution (to compare with quantum solution)
