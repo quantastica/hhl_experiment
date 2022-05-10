@@ -69,8 +69,6 @@ def get_hhl_circuit(A, b, verbose=False):
     
     min_eigval = np.min(np.linalg.eigvals(A))
         
-    blocks = []
-
     circuit = CircuitLite()
 
     # State preparation using Quantastica tools
@@ -198,7 +196,6 @@ def linalg_qsolve(A, b, verbose=False, print_qasm=False):
     simulator.execute(circuit, reverse_bits=True)    
     state_vector = simulator.state
     
-
     # Read raw result from state vector
     num_qubits = circuit.num_qubits()
     offset = 2**(num_qubits - 1)
@@ -213,6 +210,8 @@ def linalg_qsolve(A, b, verbose=False, print_qasm=False):
     if(verbose):
         print("Classical solution:", xc)
         print("Quantum solution:  ", x)
+        print("")
+        print(circuit.count_ops())
 
     if(print_qasm):
         print("Program:\n")

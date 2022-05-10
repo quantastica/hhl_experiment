@@ -318,6 +318,15 @@ class CircuitLite:
         return new_unitary
 
 
+    def count_ops(self):
+        circuit = self.decompose(inplace=False)
+        counts = Counter()
+        for gate in circuit.program:
+            gate_name = gate["name"]
+            counts[gate_name] += 1
+
+        return counts
+
             
 #
 # Naive simulator. Suitable for up to 10 qubits. Spends a lot of memory and CPU.
